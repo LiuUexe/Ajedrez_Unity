@@ -1,18 +1,20 @@
 using UnityEngine;
 using TMPro;
+using UnityEngine.SceneManagement;
 
 public class MenuManager : MonoBehaviour
 {
-    [Header("Paneles de UI")]
+    [Header("UI Panels")]
     [SerializeField] private GameObject menuPanel;
 
-    [Header("Configuración de Conexión")]
-    [Tooltip("Campo donde el jugador escribe la IP o el código de la sala para unirse")]
-    [SerializeField] private TMP_InputField inputJoinCodeOrIP; 
+    [Header("Connection Settings")]
+    [SerializeField] private TMP_InputField ipAddressInput;
+
+    [Header("Scene Settings")]
+    [SerializeField] private string gameSceneName = "Game";
 
     private void Start()
     {
-        // Nos aseguramos de que el panel principal esté activo al empezar
         if (menuPanel != null)
         {
             menuPanel.SetActive(true);
@@ -21,39 +23,24 @@ public class MenuManager : MonoBehaviour
 
     public void ClickHostGame()
     {
-        Debug.Log("Iniciando partida como Host...");
+        Debug.Log("Starting game as Host...");
         
-        // Ocultar el menú (opcional, dependiendo de si cambias de escena o no)
-        // menuPanel.SetActive(false);
-
-        // TODO: Aquí debes llamar a la función de tu librería de red.
-        // Ejemplo si usas Unity Netcode for GameObjects:
-        // NetworkManager.Singleton.StartHost();
+        NetworkConfig.CurrentRole = NetworkConfig.Role.Host;
         
-        // Ejemplo si usas Mirror:
-        // NetworkManager.singleton.StartHost();
-        
-        // Ejemplo si usas Photon (PUN):
-        // PhotonNetwork.CreateRoom("SalaAjedrez");
+        SceneManager.LoadScene(gameSceneName);
     }
 
-    /// <summary>
-    /// Se ejecuta al pulsar el botón "Join Server"
-    /// </summary>
     public void ClickJoinGame()
     {
-        string joinData = inputJoinCodeOrIP != null ? inputJoinCodeOrIP.text : "";
-        Debug.Log($"Intentando unirse al servidor con el dato: {joinData}");
+        string ip = (ipAddressInput != null && !string.IsNullOrEmpty(ipAddressInput.text)) 
+            ? ipAddressInput.text 
+            : "127.0.0.1";
 
-        // TODO: Aquí debes llamar a la función de tu librería de red.
-        // Ejemplo si usas Unity Netcode for GameObjects (necesita configuración de IP previa):
-        // NetworkManager.Singleton.StartClient();
-        
-        // Ejemplo si usas Mirror (asignando la IP primero):
-        // NetworkManager.singleton.networkAddress = joinData;
-        // NetworkManager.singleton.StartClient();
-        
-        // Ejemplo si usas Photon (PUN):
-        // PhotonNetwork.JoinRoom(joinData);
+        Debug.Log($"Attempting to join server at: {ip}");
+
+        NetworkConfig.CurrentRole = NetworkConfig.Role.Client;
+        NetworkConfig.IPAddress = ip;
+
+        SceneManager.LoadScene(gameSceneName);
     }
 }

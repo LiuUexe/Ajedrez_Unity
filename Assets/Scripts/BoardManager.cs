@@ -1,17 +1,27 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public class BoardManager : MonoBehaviour
 {
     public static BoardManager Instance;
+    public static event Action<int, int, int, int> OnLocalMoveMade;
 
     [Header("References")]
     public Transform highlightsParent;
     public GameObject highlightPrefab;
 
+    [Header("Network")]
+    public PieceColor localPlayerColor = PieceColor.White;
+
     [Header("Turn")]
     public PieceColor currentTurn = PieceColor.White;
+
+    public GameObject whiteCheckMatePanel;
+    public GameObject blackCheckMatePanel;
+    public GameObject stalematePanel;
 
     [Header("Highlight Colors")]
     public Color normalMoveColor = new Color(0f, 0f, 0f, 0.35f);
@@ -36,7 +46,6 @@ public class BoardManager : MonoBehaviour
     private void RegisterPieces()
     {
         board = new ChessPiece[8, 8];
-
         ChessPiece[] pieces = FindObjectsByType<ChessPiece>(FindObjectsSortMode.None);
 
         foreach (ChessPiece piece in pieces)
@@ -53,9 +62,15 @@ public class BoardManager : MonoBehaviour
     {
         if (piece == null) return;
 
+        if (piece.color != localPlayerColor)
+        {
+            Debug.Log($"Not your piece. You are playing as {localPlayerColor}");
+            return;
+        }
+
         if (piece.color != currentTurn)
         {
-            Debug.Log("No es el turno de esta pieza");
+            Debug.Log("It is not your turn yet.");
             return;
         }
 
@@ -76,37 +91,63 @@ public class BoardManager : MonoBehaviour
         }
     }
 
-    public void MoveSelectedPiece(int x, int y)
+    public void MoveSelectedPiece(int targetX, int targetY)
     {
         if (selectedPiece == null) return;
 
         List<Vector2Int> legalMoves = GetLegalMoves(selectedPiece);
 
-        if (!ContainsMove(legalMoves, x, y))
+        if (!ContainsMove(legalMoves, targetX, targetY))
         {
-            Debug.Log("Movimiento ilegal");
+            Debug.Log("Illegal move");
             return;
         }
 
-        board[selectedPiece.x, selectedPiece.y] = null;
+        int startX = selectedPiece.x;
+        int startY = selectedPiece.y;
 
-        ChessPiece targetPiece = board[x, y];
+        ExecuteMoveLogic(startX, startY, targetX, targetY);
 
-        if (targetPiece != null && targetPiece.color != selectedPiece.color)
+        OnLocalMoveMade?.Invoke(startX, startY, targetX, targetY);
+    }
+
+    public void ExecuteNetworkMove(int startX, int startY, int targetX, int targetY)
+    {
+        ExecuteMoveLogic(startX, startY, targetX, targetY);
+    }
+
+    private void ExecuteMoveLogic(int startX, int startY, int targetX, int targetY)
+    {
+        ChessPiece pieceToMove = board[startX, startY];
+        if (pieceToMove == null) return;
+
+        board[startX, startY] = null;
+        ChessPiece targetPiece = board[targetX, targetY];
+
+        if (targetPiece != null && targetPiece.color != pieceToMove.color)
         {
+            targetPiece.gameObject.SetActive(false);
             Destroy(targetPiece.gameObject);
         }
 
-        selectedPiece.SetPosition(x, y);
-        board[x, y] = selectedPiece;
+        pieceToMove.SetPosition(targetX, targetY);
+        board[targetX, targetY] = pieceToMove;
 
-        selectedPiece.SetSelected(false);
-        selectedPiece = null;
+        if (selectedPiece == pieceToMove)
+        {
+            selectedPiece.SetSelected(false);
+            selectedPiece = null;
+        }
 
         ClearHighlights();
         ChangeTurn();
-
         CheckGameState();
+    }
+
+    private void ChangeTurn()
+    {
+        currentTurn = currentTurn == PieceColor.White ? PieceColor.Black : PieceColor.White;
+        Debug.Log("Current turn: " + currentTurn);
     }
 
     private void CheckGameState()
@@ -115,20 +156,57 @@ public class BoardManager : MonoBehaviour
         {
             if (IsCheckmate(currentTurn))
             {
-                Debug.Log("JAQUE MATE. Ganan las " + OppositeColor(currentTurn));
-            }
-            else
-            {
-                Debug.Log("JAQUE a " + currentTurn);
+
+                if (OppositeColor(currentTurn) == PieceColor.White)
+                {
+                    ShowGameOverPanel("WhiteWins");
+                }
+                else
+                {
+                    ShowGameOverPanel("BlackWins");
+                }
             }
         }
         else
         {
             if (IsStalemate(currentTurn))
             {
-                Debug.Log("TABLAS por ahogado");
+                ShowGameOverPanel("Stalemate");
             }
         }
+    }
+
+    private void ShowGameOverPanel(string state)
+    {
+        ResetAllPanels();
+
+        switch (state)
+        {
+            case "WhiteWins":
+                if (whiteCheckMatePanel != null) whiteCheckMatePanel.SetActive(true);
+                break;
+            case "BlackWins":
+                if (blackCheckMatePanel != null) blackCheckMatePanel.SetActive(true);
+                break;
+            case "Stalemate":
+                if (stalematePanel != null) stalematePanel.SetActive(true);
+                break;
+        }
+    }
+
+
+    private void ResetAllPanels()
+    {
+        if (whiteCheckMatePanel != null) whiteCheckMatePanel.SetActive(false);
+        if (blackCheckMatePanel != null) blackCheckMatePanel.SetActive(false);
+        if (stalematePanel != null) stalematePanel.SetActive(false);
+    }
+
+
+    public void BackToMenuScene()
+    {
+        ResetAllPanels();
+        SceneManager.LoadScene("Menu");
     }
 
     private List<Vector2Int> GetLegalMoves(ChessPiece piece)
@@ -174,21 +252,19 @@ public class BoardManager : MonoBehaviour
     private bool IsKingInCheck(PieceColor kingColor)
     {
         Vector2Int kingPos = FindKing(kingColor);
-
-        if (kingPos.x == -1)
-            return false;
+        if (kingPos.x == -1) return false;
 
         PieceColor enemyColor = OppositeColor(kingColor);
-
         ChessPiece[] pieces = FindObjectsByType<ChessPiece>(FindObjectsSortMode.None);
 
         foreach (ChessPiece piece in pieces)
         {
-            if (piece == null) continue;
+            if (piece == null || !piece.gameObject.activeInHierarchy) continue;
+            if (board[piece.x, piece.y] != piece) continue;
+
             if (piece.color != enemyColor) continue;
 
             List<Vector2Int> enemyMoves = GetRawMoves(piece, true);
-
             foreach (Vector2Int move in enemyMoves)
             {
                 if (move.x == kingPos.x && move.y == kingPos.y)
@@ -197,7 +273,6 @@ public class BoardManager : MonoBehaviour
                 }
             }
         }
-
         return false;
     }
 
@@ -241,7 +316,9 @@ public class BoardManager : MonoBehaviour
 
         foreach (ChessPiece piece in pieces)
         {
-            if (piece == null) continue;
+            if (piece == null || !piece.gameObject.activeInHierarchy) continue;
+            if (board[piece.x, piece.y] != piece) continue;
+
             if (piece.color != color) continue;
 
             if (GetLegalMoves(piece).Count > 0)
@@ -249,7 +326,6 @@ public class BoardManager : MonoBehaviour
                 return true;
             }
         }
-
         return false;
     }
 
@@ -465,15 +541,6 @@ public class BoardManager : MonoBehaviour
         }
 
         activeHighlights.Clear();
-    }
-
-    private void ChangeTurn()
-    {
-        currentTurn = currentTurn == PieceColor.White
-            ? PieceColor.Black
-            : PieceColor.White;
-
-        Debug.Log("Turno actual: " + currentTurn);
     }
 
     private PieceColor OppositeColor(PieceColor color)
