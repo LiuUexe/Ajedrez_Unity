@@ -211,18 +211,7 @@ public class BoardManager : MonoBehaviour
 
     private List<Vector2Int> GetLegalMoves(ChessPiece piece)
     {
-        List<Vector2Int> rawMoves = GetRawMoves(piece);
-        List<Vector2Int> legalMoves = new List<Vector2Int>();
-
-        foreach (Vector2Int move in rawMoves)
-        {
-            if (!WouldLeaveKingInCheck(piece, move.x, move.y))
-            {
-                legalMoves.Add(move);
-            }
-        }
-
-        return legalMoves;
+        return GetRawMoves(piece);
     }
 
     private bool WouldLeaveKingInCheck(ChessPiece piece, int targetX, int targetY)
