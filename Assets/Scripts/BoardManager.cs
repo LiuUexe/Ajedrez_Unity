@@ -126,6 +126,18 @@ public class BoardManager : MonoBehaviour
 
         if (targetPiece != null && targetPiece.color != pieceToMove.color)
         {
+            if (targetPiece.type == PieceType.King)
+            {
+                if (pieceToMove.color == PieceColor.White)
+                {
+                    ShowGameOverPanel("WhiteWins");
+                }
+                else
+                {
+                    ShowGameOverPanel("BlackWins");
+                }
+            }
+
             targetPiece.gameObject.SetActive(false);
             Destroy(targetPiece.gameObject);
         }

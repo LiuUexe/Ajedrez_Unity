@@ -8167,6 +8167,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: WhiteCheckMate
       objectReference: {fileID: 0}
+    - target: {fileID: 8314063821270601846, guid: 4c4decef489f562419c2e276f7ec9aa9, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
